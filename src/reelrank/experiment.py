@@ -131,8 +131,13 @@ BASELINE_GRIDS = {
 MEDIUM_GRIDS = {  # ML-32M sample: centred on the ML-1M optimum, sized for a laptop
     "popular": (MostPopular, {"half_life_days": [None, 90, 365]}),
     "item_knn": (ItemKNN, {"k": [50, 200], "shrink": [0, 50]}),
-    "als": (ALS, {"factors": [64, 128], "regularization": [1.0, 10.0, 100.0],
-                  "alpha": [2.0, 5.0, 10.0], "iterations": [15]}),
+    # The first 18 configs put the optimum on two edges (128 factors, reg 100); the
+    # later grids check past them, then past the next edge (256 factors).
+    "als": (ALS, [{"factors": [64, 128], "regularization": [1.0, 10.0, 100.0],
+                   "alpha": [2.0, 5.0, 10.0], "iterations": [15]},
+                  {"factors": [128], "regularization": [300.0, 1000.0], "alpha": [2.0, 5.0, 10.0], "iterations": [15]},
+                  {"factors": [256], "regularization": [100.0, 300.0], "alpha": [5.0], "iterations": [15]},
+                  {"factors": [512], "regularization": [100.0], "alpha": [5.0], "iterations": [15]}]),
 }
 SMALL_GRIDS = {  # synthetic / CI
     "popular": (MostPopular, {"half_life_days": [None, 365]}),
@@ -158,8 +163,13 @@ def tune_baselines(split: Split, out: Path, tracker: Tracker, grids=BASELINE_GRI
         if models and name not in models:
             continue
         trials, configs = [], list(_configs(grid))
+        previous = {json.dumps(t["params"], sort_keys=True): t for t in results.get(name, {}).get("trials", [])}
         with timer(f"tune {name} ({len(configs)} configs)"):
             for params in configs:
+                key = json.dumps(params, sort_keys=True)
+                if key in previous:  # already evaluated on this split: reuse
+                    trials.append(previous[key])
+                    continue
                 t = time.time()
                 model = cls(**params).fit(fold, split.items)
                 summary, _ = metrics.evaluate(model, val_ev, pop, ks=(10, 20, 50))
@@ -370,6 +380,12 @@ def final(split: Split, out: Path, tracker: Tracker, artifacts_dir: Path | None 
         from .serving.export import export_artifacts
         export_artifacts(split, tt_test, ranker, artifacts_dir)
     return results
+
+
+def write_report(out: Path) -> None:
+    load = lambda name: json.loads((out / name).read_text())
+    (out / "results.md").write_text(results_markdown(load("final.json"), load("baselines_tuning.json"),
+                                                     load("two_tower_tuning.json")))
 
 
 def dataset_stats(split: Split) -> dict:

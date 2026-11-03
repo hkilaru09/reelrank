@@ -18,7 +18,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--dataset", default="ml-1m", choices=["ml-1m", "ml-32m", "synthetic"])
     p.add_argument("--stages", nargs="+", default=["baselines", "two_tower", "final"],
-                   choices=["baselines", "two_tower", "final"])
+                   choices=["baselines", "two_tower", "final", "report"])
     p.add_argument("--quick", action="store_true", help="tiny grids and few epochs (smoke test)")
     p.add_argument("--out", default="results")
     p.add_argument("--artifacts", default="artifacts")
@@ -32,6 +32,9 @@ def main() -> None:
     name = args.dataset if args.user_frac == 1.0 else f"{args.dataset}-u{round(args.user_frac * 100)}"
     out = Path(args.out) / name
     tracker = ex.Tracker(f"reelrank-{name}", uri=None if args.no_mlflow else "sqlite:///mlflow.db")
+    if args.stages == ["report"]:  # rebuild results.md from the saved JSON, no training
+        ex.write_report(out)
+        return
     split = ex.load_split(args.dataset, user_frac=args.user_frac)
 
     if "baselines" in args.stages:
@@ -47,6 +50,8 @@ def main() -> None:
     if "final" in args.stages:
         ex.final(split, out, tracker, artifacts_dir=Path(args.artifacts) / name,
                  sampled_users=200 if args.quick else 2000)
+    if "report" in args.stages:
+        ex.write_report(out)
 
 
 if __name__ == "__main__":
