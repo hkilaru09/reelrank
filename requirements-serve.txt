@@ -1,0 +1,8 @@
+# The API image: no torch, the user tower runs in NumPy.
+numpy>=1.26,<2.3
+scipy>=1.11
+pandas>=2.1
+faiss-cpu==1.15.1
+lightgbm==4.7.0
+fastapi>=0.110
+uvicorn>=0.29

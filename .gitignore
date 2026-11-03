@@ -1,0 +1,13 @@
+# MovieLens may not be redistributed: never commit data or anything derived from it
+data/
+artifacts/
+loadtest/users.json
+mlflow.db
+mlruns/
+logs/
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
